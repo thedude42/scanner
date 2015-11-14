@@ -37,7 +37,13 @@ dns.lookup(ADDR, function onDnsLookup(err, address, fam) {
         process.exit(1);
     }
     else {
-        console.log("need to regex this address for IP addr format");
+        var re6 = /[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?/,
+            re4kinda = /^([12]?[0-9]?[0-9]\.){3}[12]?[0-9]?[0-9]$/;
+        if (    (! re6.test(address)) && 
+                (! re4kinda.test(address)) && 
+                (! /[a-zA-Z].?/.test(address))) {
+            console.log("fishy address:",address);
+        }
         initServicesObject(ServicesDBTcp, beginScan);
     }
 });
@@ -139,12 +145,12 @@ function jobGate(numjobs) {
         if (count == numjobs) {
             console.log("\n-=- results -=-\n");
             if (results.open.length) {
-                console.log("open ports:\n",JSON.stringify(results.open,null,2));
+                console.log("open TCP ports:\n",JSON.stringify(results.open,null,2));
             }
             else  {
                 console.log("No open ports");
             }
-            console.log(results.filtered.length, "ports are filtered");
+            console.log(results.filtered.length, "ports timed out (filtered|closed|lost)");
             console.log(results.closed.length, "ports are closed");
         }
     };

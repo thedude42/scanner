@@ -15,24 +15,36 @@ process.on("disconnect", function childOnParentDiconnect() {
 });
 
 function go() {
-    while (running < 1000 && msgqueue.length > 0) {
+    while (running < 100 && msgqueue.length > 0) {
         checkPort(msgqueue.shift());
     }
     setTimeout(go, 2000);
 }
 
-
+/**
+ * checkPort( {host:"host to connect to",port:"dst port for connection"} ) 
+ * Each call attempts to open a connection to obj.host on port obj.port,
+ * and sets up callbacks for socket events and sets a timeout timer.
+ *
+ * Too agressive concurrent connecting to a single host will produce false
+ * "filtered" results, as will loss on the network path.
+ */
 function checkPort(obj) {
     console.log("scanning port", obj.port);
     var conn = net.connect({host:obj.addr,port:obj.port});
     running++;
     setTimeout(function filteredSockTimeout() {
-        console.log("destroying connection on port",obj.port);
-        conn.destroy();
-    }, 3000);
+        process.nextTick(function filteredSocketTimeoutNextTick() {
+            if (! obj.determined) {
+                console.log("destroying connection on port",obj.port);
+                conn.destroy();
+            }
+        });
+    }, 30000);
     conn.on("error", function childConnErr(e) {
         if (e.code === "ECONNREFUSED") {
             console.log("PORT",obj.port,":CLOSED");
+            obj.determined = true;
             process.send({port:obj.port,state:"closed"});
         }
         else if (e.code === "ETIMEDOUT") {
@@ -45,12 +57,12 @@ function checkPort(obj) {
     conn.on("connect", function childGoodConn() {
         console.log("PORT",obj.port,":OPEN");
         process.send({port:obj.port,state:"open"});
-        obj.connected = true;
+        obj.determined = true;
         conn.destroy();
         running--;
     });
     conn.on("close", function onClose() {
-        if (!obj.connected) {
+        if (!obj.determined) {
             process.send({port:obj.port,state:"filtered"});
             console.log("PORT",obj.port,":PROBABLY FILTERED");
             running--;
