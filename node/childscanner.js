@@ -10,7 +10,7 @@ process.on("message", function childMsgHandler(msg) {
     go();
 });
 
-process.on("disconnect", function() {
+process.on("disconnect", function childOnParentDiconnect() {
     process.exit(0);
 });
 
@@ -26,6 +26,10 @@ function checkPort(obj) {
     console.log("scanning port", obj.port);
     var conn = net.connect({host:obj.addr,port:obj.port});
     running++;
+    setTimeout(function filteredSockTimeout() {
+        console.log("destroying connection on port",obj.port);
+        conn.destroy();
+    }, 3000);
     conn.on("error", function childConnErr(e) {
         if (e.code === "ECONNREFUSED") {
             console.log("PORT",obj.port,":CLOSED");
@@ -41,8 +45,16 @@ function checkPort(obj) {
     conn.on("connect", function childGoodConn() {
         console.log("PORT",obj.port,":OPEN");
         process.send({port:obj.port,state:"open"});
+        obj.connected = true;
         conn.destroy();
         running--;
+    });
+    conn.on("close", function onClose() {
+        if (!obj.connected) {
+            process.send({port:obj.port,state:"filtered"});
+            console.log("PORT",obj.port,":PROBABLY FILTERED");
+            running--;
+        }
     });
 
 }
