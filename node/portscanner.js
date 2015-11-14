@@ -25,6 +25,7 @@ var children = [],
         filtered:[],
         scanned:[]
     },
+    FISHY_ADDRESS = false,
     ServicesDBTcp = {},
     guard = jobGate(JOBS);
 
@@ -37,13 +38,10 @@ dns.lookup(ADDR, function onDnsLookup(err, address, fam) {
         process.exit(1);
     }
     else {
-        var re6 = /[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?:[0-9a-fA-F]{1,4}?/,
-            re4kinda = /^([12]?[0-9]?[0-9]\.){3}[12]?[0-9]?[0-9]$/;
-        if (    (! re6.test(address)) && 
-                (! re4kinda.test(address)) && 
-                (! /[a-zA-Z].?/.test(address))) {
+        if ( ! /\d+/.test(address)) {
             console.log("fishy address:",address);
         }
+        FISHY_ADDRESS = true;
         initServicesObject(ServicesDBTcp, beginScan);
     }
 });
@@ -144,6 +142,9 @@ function jobGate(numjobs) {
         count++;
         if (count == numjobs) {
             console.log("\n-=- results -=-\n");
+            if (FISHY_ADDRESS) {
+                console.log("** WARNING: Unreliable scan, fishy address:",ADDR,"**\n");
+            }
             if (results.open.length) {
                 console.log("open TCP ports:\n",JSON.stringify(results.open,null,2));
             }
