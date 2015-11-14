@@ -1,3 +1,9 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <netdb.h>
+
 #include <netinet/in_systm.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -123,7 +129,7 @@ void raw_packet_receiver(u_char *udata, const struct pcap_pkthdr *pkthdr, const 
 void *pth_capture_run(void *arg)
 {
     pcap_t *pd;
-    char *filter = "dst host 172.17.14.90 and ip";
+    char *filter = "dst host 127.0.0.1 and ip";
     char *dev = "fxp0";
     char errbuf[PCAP_ERRBUF_SIZE];
     bpf_u_int32 netp;
