@@ -1,5 +1,22 @@
 "use strict";
 
+/*
+ * portscanner.js
+ * Performs "connect scan" against all 2^16-1 TCP ports using concurrent
+ * worker processes, the number of which equals the number of processes
+ * reported by the system.
+ *
+ * Upon completion the open ports are listed with their resolved service
+ * names, and the number of closed (received a TCP RST packet) and filtered
+ * (connection timed out) ports are reported in no detial.
+ *
+ * Usage:
+ *
+ * portscanner.js <address>
+ *
+ * address can be ipv4, ipv6 or name which local resolver can handle
+ */
+
 var child_process = require("child_process"),
     path = require("path"),
     dns = require("dns"),
@@ -7,7 +24,8 @@ var child_process = require("child_process"),
     fs = require("fs");
 
 if (process.argv.length < 3) {
-    console.log("Please supply an address to scani\n\nusage:\n\t", path.basename(process.argv[1]), "<address>");
+    console.log("Please supply an address to scan\n\nusage:\n\t", path.basename(process.argv[1]), "<address>");
+    process.exit(1);
 }
 
 // Constants
@@ -38,7 +56,7 @@ dns.lookup(ADDR, function onDnsLookup(err, address, fam) {
         process.exit(1);
     }
     else {
-        if ( ! /\d+/.test(address)) {
+        if ( /\d+/.test(address)) {
             console.log("fishy address:",address);
         }
         FISHY_ADDRESS = true;
@@ -46,6 +64,7 @@ dns.lookup(ADDR, function onDnsLookup(err, address, fam) {
     }
 });
 
+// simple creation of an object to map ports to service names
 function initServicesObject(obj, cb) {
     var record_regex = /(\S+)\s+(\d+)\/tcp.+/,
         filestream = fs.createReadStream("/etc/services"),
@@ -69,6 +88,7 @@ function countResults() {
            results.filtered.length;
 }
 
+// initializes one child per JOBS
 function beginScan() {
     for (var i = 0; i < JOBS; ++i) {
         children[i] = initChild(i);
@@ -136,11 +156,18 @@ function initChild(num) {
     return child;
 }
 
-function jobGate(numjobs) {
+/*
+ * function maker, returns a counter function meant to be called upon each
+ * child worker process port connect attempt, initialized with the number of 
+ * expected tasks to complete.  Prints the results report when counter
+ * matches numtasks.
+ */
+
+function jobGate(numtasks) {
     var count = 0;
     return function() {
         count++;
-        if (count == numjobs) {
+        if (count == numtasks) {
             console.log("\n-=- results -=-\n");
             if (FISHY_ADDRESS) {
                 console.log("** WARNING: Unreliable scan, fishy address:",ADDR,"**\n");

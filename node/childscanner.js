@@ -2,7 +2,9 @@
 
 var net = require("net"),
     msgqueue = [],
-    running = 0;
+    running = 0,
+    CONCURRENT_CONNECTS = 1000,
+    CONNECT_TIMEOUT = 5000;
 
 process.on("message", function childMsgHandler(msg) {
     //console.log("got message:\n",JSON.stringify(msg,null,2));
@@ -14,8 +16,14 @@ process.on("disconnect", function childOnParentDiconnect() {
     process.exit(0);
 });
 
+/* go()
+ * Work message handler. Pulls up to CONCURRENT_CONNECTS off the
+ * array object "msgqueue", then sets itself on a timeout callback
+ * for 2 seconds. This process repeats until the process is killed
+ * or the parent dies.
+ */
 function go() {
-    while (running < 100 && msgqueue.length > 0) {
+    while (running < CONCURRENT_CONNECTS && msgqueue.length > 0) {
         checkPort(msgqueue.shift());
     }
     setTimeout(go, 2000);
@@ -40,7 +48,7 @@ function checkPort(obj) {
                 conn.destroy();
             }
         });
-    }, 30000);
+    }, CONNECT_TIMEOUT);
     conn.on("error", function childConnErr(e) {
         if (e.code === "ECONNREFUSED") {
             console.log("PORT",obj.port,":CLOSED");
