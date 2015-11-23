@@ -6,28 +6,41 @@ var net = require("net"),
     CONCURRENT_CONNECTS = 1000,
     CONNECT_TIMEOUT = 5000;
 
-process.on("message", function childMsgHandler(msg) {
-    //console.log("got message:\n",JSON.stringify(msg,null,2));
-    msgqueue.push(msg);
-    go();
-});
+module.exports.setConnectTimeout = function setConnectTimeout(timeout) {
+    if (!isNaN(timeout)) {
+        CONNECT_TIMEOUT = timeout;
+    }
+    return CONNECT_TIMEOUT;
+}
 
-process.on("disconnect", function childOnParentDiconnect() {
-    process.exit(0);
-});
+module.exports.setConncurrent = function setConcurrent(concurrent) {
+    if (!isNaN(concurrent)) {
+        CONCURRENT_CONNECTS = concurrent;
+    }
+    return CONCURRENT_CONNECTS;
+}
 
-/* go()
+/* childMsgHandler()
  * Work message handler. Pulls up to CONCURRENT_CONNECTS off the
  * array object "msgqueue", then sets itself on a timeout callback
  * for 2 seconds. This process repeats until the process is killed
  * or the parent dies.
  */
-function go() {
+module.exports.childMsgHandler = function childMsgHandler(msg) {
+    //console.log("got message:\n",JSON.stringify(msg,null,2));
+    if (msg !== undefined) {
+        msgqueue.push(msg);
+    }
     while (running < CONCURRENT_CONNECTS && msgqueue.length > 0) {
         checkPort(msgqueue.shift());
     }
-    setTimeout(go, 2000);
+    setTimeout(childMsgHandler, 2000);
 }
+
+process.on("message", childMsgHandler);
+process.on("disconnect", function childOnParentDiconnect() {
+    process.exit(0);
+});
 
 /**
  * checkPort( {host:"host to connect to",port:"dst port for connection"} ) 
@@ -37,7 +50,7 @@ function go() {
  * Too agressive concurrent connecting to a single host will produce false
  * "filtered" results, as will loss on the network path.
  */
-function checkPort(obj) {
+module.exports.checkPort = function checkPort(obj) {
     console.log("scanning port", obj.port);
     var conn = net.connect({host:obj.addr,port:obj.port});
     running++;
@@ -76,5 +89,4 @@ function checkPort(obj) {
             running--;
         }
     });
-
 }
