@@ -3,7 +3,7 @@
 var net = require("net"),
     msgqueue = [],
     running = 0,
-    CONCURRENT_CONNECTS = 1000,
+    CONCURRENT_CONNECTS = 100,
     CONNECT_TIMEOUT = 5000;
 
 module.exports.setConnectTimeout = function setConnectTimeout(timeout) {
@@ -32,12 +32,12 @@ module.exports.childMsgHandler = function childMsgHandler(msg) {
         msgqueue.push(msg);
     }
     while (running < CONCURRENT_CONNECTS && msgqueue.length > 0) {
-        checkPort(msgqueue.shift());
+        exports.checkPort(msgqueue.shift());
     }
-    setTimeout(childMsgHandler, 2000);
+    setTimeout(exports.childMsgHandler, 2000);
 }
 
-process.on("message", childMsgHandler);
+process.on("message", exports.childMsgHandler);
 process.on("disconnect", function childOnParentDiconnect() {
     process.exit(0);
 });

@@ -32,7 +32,6 @@ if (process.argv.length < 3) {
 var SCANNER_MODULE = "childscanner.js",
     CORES = require("os").cpus().length,
     JOBS = CORES,
-    NUM_PORTS = 65535,
     ADDR = process.argv[2];
 
 // Module vars
@@ -45,9 +44,12 @@ var children = [],
     },
     FISHY_ADDRESS = false,
     ServicesDBTcp = {},
+    START_PORT = 1,
+    END_PORT = 65535,
+    NUM_PORTS = END_PORT - START_PORT + 1,
     guard = jobGate(JOBS);
 
-console.log("Starting",JOBS,"child processes for scanning address",ADDR);
+console.log("Starting",JOBS,"child processes for scanning address",ADDR,"for ports",START_PORT,"thru",END_PORT,":",NUM_PORTS,"ports");
 
 // Perform lookup on addr input arg, then init the services DB and start scan
 dns.lookup(ADDR, function onDnsLookup(err, address, fam) {
@@ -56,13 +58,28 @@ dns.lookup(ADDR, function onDnsLookup(err, address, fam) {
         process.exit(1);
     }
     else {
-        if ( /\d+/.test(address)) {
+        if ( /^[0-9]+$/.test(address)) {
             console.log("fishy address:",address);
         }
         FISHY_ADDRESS = true;
-        initServicesObject(ServicesDBTcp, beginScan);
+        initServicesObject(ServicesDBTcp, module.exports.beginScan);
     }
 });
+
+module.exports.setNumPorts = function setNumPorts(start, end) {
+    if (isNaN(start) || isNaN(end) || start <= 0 || end > 65535) {
+        return NUM_PORTS;
+    }
+    else if ((end - start) < 0) {
+        return NUM_PORTS;
+    }
+    else {
+        START_PORT = start;
+        END_PORT = end;
+        NUM_PORTS = END_PORT - START_PORT + 1;
+        return NUM_PORTS;
+    }
+}
 
 // simple creation of an object to map ports to service names
 function initServicesObject(obj, cb) {
@@ -82,28 +99,29 @@ function initServicesObject(obj, cb) {
     });
 }
 
-function countResults() {
+module.exports.countResults = function countResults() {
     return results.open.length+
            results.closed.length+
            results.filtered.length;
 }
 
 // initializes one child per JOBS
-function beginScan() {
+module.exports.beginScan = function beginScan() {
     for (var i = 0; i < JOBS; ++i) {
-        children[i] = initChild(i);
+        var child = child_process.fork(path.resolve(SCANNER_MODULE));
+        child.num = i;
+        children[i] = exports.initChild(child);
     }
+    return children;
 }
 
-function initChild(num) {
-    var child = child_process.fork(path.resolve(SCANNER_MODULE));
-    child.num = num;
+module.exports.initChild = function initChild(child) {
     child.assigned = {};
     child.on("error", function parentErrorHandler(e) {
-        console.log("Child", num, "errored:", e);
+        console.log("Child", child.num, "errored:", e);
     });
     child.on("exit", function parentExitHandler(e) {
-        console.log("Child", num, "exited:", e);
+        console.log("Child", child.num, "exited:", e);
         var waiting = [];
         for (var i = 0; i < child.assigned.length; ++i) {
             if (Object.keys(child.assigned)[i] === "waiting") {
@@ -112,7 +130,10 @@ function initChild(num) {
         }
         if (waiting.length > 0) {
             console.log("restarting child",child.num);
-            initChild(child.num, waiting);
+            var new_child = child_process.fork(path.resolve(SCANNER_MODULE));
+            new_child.num = child.num;
+            children[new_child.num] = new_child;
+            initChild(new_child, waiting);
         }
         else {
             guard();
@@ -131,7 +152,7 @@ function initChild(num) {
         results.scanned[msg.port] = true;
         child.assigned[msg.port] = "scanned";
         // All work complete case
-        if (countResults() == NUM_PORTS) {
+        if (exports.countResults() === NUM_PORTS) {
             console.log("DISCONNECTING",children.length,"CHILDREN");
             children.forEach(function(c) {
                 c.disconnect();
@@ -141,7 +162,7 @@ function initChild(num) {
     // default case
     if (arguments.length < 2) {
         console.log("Sending port messages to child",child.num);
-        for (var port = child.num+1; port <= NUM_PORTS; port += JOBS) {
+        for (var port = START_PORT+child.num; port <= END_PORT; port += JOBS) {
             child.send({port:port,addr:ADDR});
             child.assigned[port] = "waiting";
         }
@@ -181,5 +202,6 @@ function jobGate(numtasks) {
             console.log(results.filtered.length, "ports timed out (filtered|closed|lost)");
             console.log(results.closed.length, "ports are closed");
         }
+        return count;
     };
 }
