@@ -18,21 +18,15 @@
  */
 
 var child_process = require("child_process"),
-    path = require("path"),
-    dns = require("dns"),
+    fs = require("fs"),
     readline = require("readline"),
-    fs = require("fs");
+    path = require("path");
 
-if (process.argv.length < 3) {
-    console.log("Please supply an address to scan\n\nusage:\n\t", path.basename(process.argv[1]), "<address>");
-    process.exit(1);
-}
 
 // Constants
 var SCANNER_MODULE = "childscanner.js",
     CORES = require("os").cpus().length,
-    JOBS = CORES,
-    ADDR = process.argv[2];
+    WORKERS = CORES;
 
 // Module vars
 var children = [],
@@ -47,26 +41,12 @@ var children = [],
     START_PORT = 1,
     END_PORT = 65535,
     NUM_PORTS = END_PORT - START_PORT + 1,
-    guard = jobGate(JOBS);
+    ADDR = false,
+    guard = workersGate(WORKERS);
 
-console.log("Starting",JOBS,"child processes for scanning address",ADDR,"for ports",START_PORT,"thru",END_PORT,":",NUM_PORTS,"ports");
+module.exports.results = results;
 
-// Perform lookup on addr input arg, then init the services DB and start scan
-dns.lookup(ADDR, function onDnsLookup(err, address, fam) {
-    if (err) {
-        console.log("Unable to resolve", ADDR);
-        process.exit(1);
-    }
-    else {
-        if ( /^[0-9]+$/.test(address)) {
-            console.log("fishy address:",address);
-        }
-        FISHY_ADDRESS = true;
-        initServicesObject(ServicesDBTcp, module.exports.beginScan);
-    }
-});
-
-module.exports.setNumPorts = function setNumPorts(start, end) {
+function setNumPorts(start, end) {
     if (isNaN(start) || isNaN(end) || start <= 0 || end > 65535) {
         return NUM_PORTS;
     }
@@ -77,16 +57,31 @@ module.exports.setNumPorts = function setNumPorts(start, end) {
         START_PORT = start;
         END_PORT = end;
         NUM_PORTS = END_PORT - START_PORT + 1;
-        return NUM_PORTS;
+        return {start:START_PORT,end:END_PORT,numports:NUM_PORTS};
     }
 }
+module.exports.setNumPorts = setNumPorts;
+
+function countResults() {
+    return results.open.length+
+           results.closed.length+
+           results.filtered.length;
+}
+module.exports.countResults = countResults;
+
+// initializes one child per WORKERS
+module.exports.beginScan = function beginScan(addr) {
+    ADDR = addr;
+    exports.initServicesObject(ServicesDBTcp, scanInit);
+    console.log("Starting",WORKERS,"child processes for scanning address",ADDR,"for ports",START_PORT,"thru",END_PORT,":",NUM_PORTS,"ports");
+};
 
 // simple creation of an object to map ports to service names
-function initServicesObject(obj, cb) {
+// and call callback function cb when complete
+module.exports.initServicesObject = function initServicesObject(obj, cb) {
     var record_regex = /(\S+)\s+(\d+)\/tcp.+/,
         filestream = fs.createReadStream("/etc/services"),
-        rl = readline.createInterface({input:filestream}),
-        services = {};
+        rl = readline.createInterface({input:filestream});
     rl.on("line", function(line) {
         var m = record_regex.exec(line);
         if (m) {
@@ -97,25 +92,27 @@ function initServicesObject(obj, cb) {
     filestream.on("error", function(e) {
         console.log("could not open /etc/services : ",e);
     });
-}
+};
 
-module.exports.countResults = function countResults() {
-    return results.open.length+
-           results.closed.length+
-           results.filtered.length;
-}
-
-// initializes one child per JOBS
-module.exports.beginScan = function beginScan() {
-    for (var i = 0; i < JOBS; ++i) {
-        var child = child_process.fork(path.resolve(SCANNER_MODULE));
+// private function to launch worker processes
+function scanInit() {
+    if (!ADDR) {
+        console.log("Address is not set");
+        return undefined;
+    }
+    for (var i = 0; i < WORKERS; ++i) {
+        var child = forkChildProcess(SCANNER_MODULE);
         child.num = i;
         children[i] = exports.initChild(child);
     }
     return children;
 }
 
-module.exports.initChild = function initChild(child) {
+function forkChildProcess(modulename) {
+    return child_process.fork(path.resolve(modulename));
+}
+
+function initChild(child) {
     child.assigned = {};
     child.on("error", function parentErrorHandler(e) {
         console.log("Child", child.num, "errored:", e);
@@ -130,7 +127,7 @@ module.exports.initChild = function initChild(child) {
         }
         if (waiting.length > 0) {
             console.log("restarting child",child.num);
-            var new_child = child_process.fork(path.resolve(SCANNER_MODULE));
+            var new_child = forkChildProcess(SCANNER_MODULE);
             new_child.num = child.num;
             children[new_child.num] = new_child;
             initChild(new_child, waiting);
@@ -152,7 +149,7 @@ module.exports.initChild = function initChild(child) {
         results.scanned[msg.port] = true;
         child.assigned[msg.port] = "scanned";
         // All work complete case
-        if (exports.countResults() === NUM_PORTS) {
+        if (countResults() === NUM_PORTS) {
             console.log("DISCONNECTING",children.length,"CHILDREN");
             children.forEach(function(c) {
                 c.disconnect();
@@ -162,7 +159,7 @@ module.exports.initChild = function initChild(child) {
     // default case
     if (arguments.length < 2) {
         console.log("Sending port messages to child",child.num);
-        for (var port = START_PORT+child.num; port <= END_PORT; port += JOBS) {
+        for (var port = START_PORT+child.num; port <= END_PORT; port += WORKERS) {
             child.send({port:port,addr:ADDR});
             child.assigned[port] = "waiting";
         }
@@ -176,6 +173,7 @@ module.exports.initChild = function initChild(child) {
     }
     return child;
 }
+module.exports.initChild = initChild;
 
 /*
  * function maker, returns a counter function meant to be called upon each
@@ -184,7 +182,7 @@ module.exports.initChild = function initChild(child) {
  * matches numtasks.
  */
 
-function jobGate(numtasks) {
+function workersGate(numtasks) {
     var count = 0;
     return function() {
         count++;
@@ -201,7 +199,14 @@ function jobGate(numtasks) {
             }
             console.log(results.filtered.length, "ports timed out (filtered|closed|lost)");
             console.log(results.closed.length, "ports are closed");
+            return true;
         }
-        return count;
+        else if (count < numtasks) {
+            return count;
+        }
+        else {
+            return false;
+        }
     };
 }
+module.exports.workersGate = workersGate;
