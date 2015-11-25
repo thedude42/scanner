@@ -1,6 +1,6 @@
 var test = require("tape"),
-    scanner = require("./scannerlib"),
-    childscanner = require("./childscanner"),
+    scanner = require("../scannerlib"),
+    childscanner = require("../childscanner"),
     util = require("util"),
     EventEmitter = require('events').EventEmitter;
 
