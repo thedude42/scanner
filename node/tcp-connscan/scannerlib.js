@@ -24,7 +24,8 @@ var child_process = require("child_process"),
 
 
 // Constants
-var SCANNER_MODULE = "childscanner.js",
+//var SCANNER_MODULE = "childscanner.js",
+var SCANNER_MODULE = path.join(path.dirname(fs.realpathSync(__filename)), './childscanner.js'),
     CORES = require("os").cpus().length,
     WORKERS = CORES;
 
