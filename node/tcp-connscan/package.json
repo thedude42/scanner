@@ -1,0 +1,33 @@
+{
+  "name": "tcp-connscan",
+  "version": "0.0.1",
+  "description": "concurrent worker node.js tcp \"connection\" style port scanner",
+  "main": "tcp-connscan",
+  "directories": {
+    "test": "tests"
+  },
+  "dependencies": {
+    "tape": "^4.2.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "node tests/tests.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thedude42/scanner.git"
+  },
+  "keywords": [
+    "tcp",
+    "port",
+    "scanner",
+    "connect",
+    "net"
+  ],
+  "author": "Johnny Schmidt",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/thedude42/scanner/issues"
+  },
+  "homepage": "https://github.com/thedude42/scanner#readme"
+}
