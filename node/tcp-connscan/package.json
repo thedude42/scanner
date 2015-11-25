@@ -10,6 +10,9 @@
     "tape": "^4.2.2"
   },
   "devDependencies": {},
+  "bin": {
+    "tcp-connscan": "bin/scanrunner.js"
+  },
   "scripts": {
     "test": "node tests/tests.js"
   },
