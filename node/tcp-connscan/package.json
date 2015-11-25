@@ -1,6 +1,6 @@
 {
   "name": "tcp-connscan",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "concurrent worker node.js tcp \"connection\" style port scanner",
   "main": "tcp-connscan",
   "dependencies": {},
