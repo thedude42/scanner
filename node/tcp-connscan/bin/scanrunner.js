@@ -1,7 +1,7 @@
 #! /usr/bin/env node
 console.log("console.log output");
 
-var scanner = require("./scannerlib"),
+var scanner = require("../scannerlib"),
     dns = require("dns"),
     path = require("path");
 

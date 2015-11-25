@@ -3,13 +3,10 @@
   "version": "0.0.1",
   "description": "concurrent worker node.js tcp \"connection\" style port scanner",
   "main": "tcp-connscan",
-  "directories": {
-    "test": "tests"
-  },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "tape": "^4.2.2"
   },
-  "devDependencies": {},
   "bin": {
     "tcp-connscan": "bin/scanrunner.js"
   },
@@ -32,5 +29,8 @@
   "bugs": {
     "url": "https://github.com/thedude42/scanner/issues"
   },
-  "homepage": "https://github.com/thedude42/scanner#readme"
+  "homepage": "https://github.com/thedude42/scanner#readme",
+  "directories": {
+    "test": "tests"
+  }
 }
